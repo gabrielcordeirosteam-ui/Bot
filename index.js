@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-// KEEP ALIVE - RENDER
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +22,9 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  EmbedBuilder
+  EmbedBuilder,
+  ChannelSelectMenuBuilder,
+  ChannelType
 } = require('discord.js');
 
 const client = new Client({
@@ -37,30 +38,35 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
-// 🔹 IDs FIXOS
 const CANAL_RECRUTAMENTO_ID = '1461214773667696875';
 const CARGO_ID = '1459377526475460719';
+
 
 client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
-// 📌 PAINEL FIXO
-client.on('messageCreate', async (message) => {
-  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
-  if (message.content === '!painel') {
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+  if (!message.guild) return;
+
+  if (
+    !message.member ||
+    !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
+  ) return;
+  if (message.content === '!painelset') {
     const embed = new EmbedBuilder()
-      .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
+      .setTitle('👑  RECRUTAMENTO FAMÍLIA 4M')
       .setDescription(
-        'Clique no botão abaixo para solicitar sua entrada na organização.\n\n' +
+        '*Entre na FAMÍLIA 4M apenas clicando no botão abaixo!*\n\n' +
         '**Instruções:**\n' +
         '1. Clique em **Solicitar Set Família 4M**.\n' +
         '2. Preencha seus dados do jogo.\n' +
         '3. Aguarde a aprovação.\n\n' +
-        '*Desenvolvido por SettLabs / By Since*'
+        '*Desenvolvido por **Gabriel Cordeiro***'
       )
-      .setColor('#2b2d31');
+      .setColor('#2765e2');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -69,13 +75,37 @@ client.on('messageCreate', async (message) => {
         .setStyle(ButtonStyle.Secondary)
     );
 
-    message.channel.send({ embeds: [embed], components: [row] });
+    await message.channel.send({ embeds: [embed], components: [row] });
+  }
+
+  if (message.content === '!painelmensagem') {
+    const embed = new EmbedBuilder()
+      .setTitle('📨 PAINEL DE MENSAGEM')
+      .setDescription(
+               '*📨 Envie mensagens personalidas seguindo as intruções abaixo!*\n\n' +
+        '**Instruções:**\n' +
+        '1. Clique em Enviar **Mensagem Personalizada**.\n' +
+        '2. Escolha o canal de envio de sua mensagem.\n' +
+        '3. Preencha com sua mensagem e imagem (OPCIONAL).\n\n' +
+        '*Desenvolvido por **Gabriel Cordeiro***'
+      )
+      .setColor('#2765e2');
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('abrir_painel_mensagem')
+        .setLabel('✉️ Enviar Mensagem Personalizada')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
   }
 });
 
+
 client.on('interactionCreate', async (interaction) => {
   try {
-    // 📋 ABRIR FORMULÁRIO
+
     if (interaction.isButton() && interaction.customId === 'solicitar_set_familia4m') {
       const modal = new ModalBuilder()
         .setCustomId('form_set_familia4m')
@@ -86,7 +116,6 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('nome')
             .setLabel('Nome')
-            .setPlaceholder('Nome in Game')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         ),
@@ -94,15 +123,6 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('id')
             .setLabel('ID')
-            .setPlaceholder('ID in Game')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('numero')
-            .setLabel('Número')
-            .setPlaceholder('Número in Game')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         ),
@@ -110,7 +130,6 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('recrutador')
             .setLabel('Recrutador')
-            .setPlaceholder('Quem te trouxe para a Família 4M?')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -118,12 +137,9 @@ client.on('interactionCreate', async (interaction) => {
 
       return interaction.showModal(modal);
     }
-
-    // 📩 ENVIO DO FORMULÁRIO
     if (interaction.isModalSubmit() && interaction.customId === 'form_set_familia4m') {
       const nome = interaction.fields.getTextInputValue('nome');
       const id = interaction.fields.getTextInputValue('id');
-      const numero = interaction.fields.getTextInputValue('numero');
       const recrutador = interaction.fields.getTextInputValue('recrutador');
 
       const embed = new EmbedBuilder()
@@ -131,9 +147,8 @@ client.on('interactionCreate', async (interaction) => {
         .addFields(
           { name: '👤 Nome', value: nome, inline: true },
           { name: '🆔 ID', value: id, inline: true },
-          { name: '📞 Número', value: numero, inline: true },
-          { name: '🎯 Recrutador', value: recrutador, inline: false },
-          { name: '👤 Usuário Discord', value: `<@${interaction.user.id}>`, inline: false }
+          { name: '🎯 Recrutador', value: recrutador },
+          { name: '👤 Usuário Discord', value: `<@${interaction.user.id}>` }
         )
         .setColor('#5865F2')
         .setTimestamp();
@@ -148,46 +163,100 @@ client.on('interactionCreate', async (interaction) => {
       const canal = interaction.guild.channels.cache.get(CANAL_RECRUTAMENTO_ID);
       if (canal) await canal.send({ embeds: [embed], components: [row] });
 
-      return interaction.reply({
-        content: '✅ Solicitação enviada com sucesso!',
-        ephemeral: true
-      });
+      return interaction.reply({ content: '✅ Solicitação enviada com sucesso!', flags: 64 });
     }
 
-    // ✅ ACEITAR SET
     if (interaction.isButton() && interaction.customId.startsWith('aceitar_set_familia4m|')) {
+      await interaction.deferReply();
+
       const userId = interaction.customId.split('|')[1];
       const member = await interaction.guild.members.fetch(userId);
 
       if (member.roles.cache.has(CARGO_ID)) {
-        return interaction.reply({
-          content: '❌ Este usuário já possui o cargo.',
-          ephemeral: true
-        });
+        return interaction.editReply('❌ Este usuário já possui o cargo.');
       }
 
       await member.roles.add(CARGO_ID);
 
-      await interaction.update({
+      await interaction.message.edit({
         components: [
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId('aprovado_familia4m')
               .setLabel('✔️ Aprovado')
               .setStyle(ButtonStyle.Secondary)
               .setDisabled(true)
+              .setCustomId('aprovado')
           )
         ]
       });
 
-      await interaction.followUp({
-        content: `✅ <@${userId}> foi aprovado e recebeu o cargo com sucesso!`,
-        ephemeral: false
+      return interaction.editReply(`✅ <@${userId}> foi aprovado e recebeu o cargo com sucesso!`);
+    }
+
+    if (interaction.isButton() && interaction.customId === 'abrir_painel_mensagem') {
+      const row = new ActionRowBuilder().addComponents(
+        new ChannelSelectMenuBuilder()
+          .setCustomId('selecionar_canal_envio')
+          .setPlaceholder('Selecione o canal')
+          .addChannelTypes(ChannelType.GuildText)
+      );
+
+      return interaction.reply({
+        content: '📌 Selecione o canal de envio:',
+        components: [row],
+        flags: 64
       });
     }
 
+    if (interaction.isChannelSelectMenu() && interaction.customId === 'selecionar_canal_envio') {
+      const canalId = interaction.values[0];
+
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_mensagem|${canalId}`)
+        .setTitle('Mensagem Personalizada');
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('texto')
+            .setLabel('Texto da Mensagem')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('imagem')
+            .setLabel('Link da Imagem (opcional)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+        )
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_mensagem|')) {
+      await interaction.deferReply({ flags: 64 });
+
+      const canalId = interaction.customId.split('|')[1];
+      const texto = interaction.fields.getTextInputValue('texto');
+      const imagem = interaction.fields.getTextInputValue('imagem');
+
+      const canal = interaction.guild.channels.cache.get(canalId);
+      if (!canal) return interaction.editReply('❌ Canal não encontrado.');
+
+      const embed = new EmbedBuilder()
+        .setDescription(texto)
+        .setColor('#5865F2');
+
+      if (imagem && imagem.startsWith('http')) embed.setImage(imagem);
+
+      await canal.send({ embeds: [embed] });
+      return interaction.editReply('✅ Mensagem enviada com sucesso!');
+    }
+
   } catch (err) {
-    console.error(err);
+    console.error('❌ Erro:', err);
   }
 });
 
