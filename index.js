@@ -12,6 +12,7 @@ app.listen(PORT, () => {
   console.log(`🌐 Servidor HTTP ativo na porta ${PORT}`);
 });
 
+
 const {
   Client,
   GatewayIntentBits,
@@ -38,14 +39,14 @@ const client = new Client({
 
 const TOKEN = process.env.TOKEN;
 
+
 const CANAL_RECRUTAMENTO_ID = '1461214773667696875';
 const CARGO_ID = '1459377526475460719';
-
+const CANAL_LOGS_ID = '1461475178335830168';
 
 client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
-
 
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
@@ -55,9 +56,10 @@ client.on('messageCreate', async (message) => {
     !message.member ||
     !message.member.permissions.has(PermissionsBitField.Flags.Administrator)
   ) return;
+
   if (message.content === '!painelset') {
     const embed = new EmbedBuilder()
-      .setTitle('👑  RECRUTAMENTO FAMÍLIA 4M')
+      .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
       .setDescription(
         '*Entre na FAMÍLIA 4M apenas clicando no botão abaixo!*\n\n' +
         '**Instruções:**\n' +
@@ -82,11 +84,11 @@ client.on('messageCreate', async (message) => {
     const embed = new EmbedBuilder()
       .setTitle('📨 PAINEL DE MENSAGEM')
       .setDescription(
-               '*📨 Envie mensagens personalidas seguindo as intruções abaixo!*\n\n' +
+        '*Envie mensagens personalizadas seguindo as instruções abaixo!*\n\n' +
         '**Instruções:**\n' +
-        '1. Clique em Enviar **Mensagem Personalizada**.\n' +
-        '2. Escolha o canal de envio de sua mensagem.\n' +
-        '3. Preencha com sua mensagem e imagem (OPCIONAL).\n\n' +
+        '1. Clique em **Enviar Mensagem Personalizada**.\n' +
+        '2. Escolha o canal de envio.\n' +
+        '3. Envie sua mensagem e imagem (opcional).\n\n' +
         '*Desenvolvido por **Gabriel Cordeiro***'
       )
       .setColor('#2765e2');
@@ -101,7 +103,6 @@ client.on('messageCreate', async (message) => {
     await message.channel.send({ embeds: [embed], components: [row] });
   }
 });
-
 
 client.on('interactionCreate', async (interaction) => {
   try {
@@ -137,6 +138,7 @@ client.on('interactionCreate', async (interaction) => {
 
       return interaction.showModal(modal);
     }
+
     if (interaction.isModalSubmit() && interaction.customId === 'form_set_familia4m') {
       const nome = interaction.fields.getTextInputValue('nome');
       const id = interaction.fields.getTextInputValue('id');
@@ -189,6 +191,19 @@ client.on('interactionCreate', async (interaction) => {
           )
         ]
       });
+
+      const logEmbed = new EmbedBuilder()
+        .setTitle('📋 LOG | Set Família 4M')
+        .addFields(
+          { name: '👑 Aprovado por', value: `<@${interaction.user.id}>`, inline: true },
+          { name: '🎖️ Recebeu o cargo', value: `<@${userId}>`, inline: true },
+          { name: '🆔 ID', value: userId }
+        )
+        .setColor('#2ecc71')
+        .setTimestamp();
+
+      const canalLogs = interaction.guild.channels.cache.get(CANAL_LOGS_ID);
+      if (canalLogs) await canalLogs.send({ embeds: [logEmbed] });
 
       return interaction.editReply(`✅ <@${userId}> foi aprovado e recebeu o cargo com sucesso!`);
     }
