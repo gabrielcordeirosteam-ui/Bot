@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.send('🤖 Bot ZeroFoco rodando 24h no Render!');
+  res.send('🤖 Bot Família 4M rodando 24h no Render!');
 });
 
 app.listen(PORT, () => {
@@ -45,16 +45,17 @@ client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
 });
 
+// 📌 PAINEL FIXO
 client.on('messageCreate', async (message) => {
   if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
 
   if (message.content === '!painel') {
     const embed = new EmbedBuilder()
-      .setTitle('🧑‍💼 RECRUTAMENTO ZEROFOCO')
+      .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
       .setDescription(
         'Clique no botão abaixo para solicitar sua entrada na organização.\n\n' +
         '**Instruções:**\n' +
-        '1. Clique em **Solicitar Set ZeroFoco**.\n' +
+        '1. Clique em **Solicitar Set Família 4M**.\n' +
         '2. Preencha seus dados do jogo.\n' +
         '3. Aguarde a aprovação.\n\n' +
         '*Desenvolvido por SettLabs / By Since*'
@@ -63,8 +64,8 @@ client.on('messageCreate', async (message) => {
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId('solicitar_set_zerofocoamesoFoco')
-        .setLabel('Solicitar Set ZeroFoco')
+        .setCustomId('solicitar_set_familia4m')
+        .setLabel('Solicitar Set Família 4M')
         .setStyle(ButtonStyle.Secondary)
     );
 
@@ -75,10 +76,10 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   try {
     // 📋 ABRIR FORMULÁRIO
-    if (interaction.isButton() && interaction.customId === 'solicitar_set_zerofoco') {
+    if (interaction.isButton() && interaction.customId === 'solicitar_set_familia4m') {
       const modal = new ModalBuilder()
-        .setCustomId('form_set_zerofoco')
-        .setTitle('Formulário de Set | ZeroFoco');
+        .setCustomId('form_set_familia4m')
+        .setTitle('Formulário de Set | Família 4M');
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -109,7 +110,7 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('recrutador')
             .setLabel('Recrutador')
-            .setPlaceholder('Quem te trouxe para a ZeroFoco?')
+            .setPlaceholder('Quem te trouxe para a Família 4M?')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -119,14 +120,14 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     // 📩 ENVIO DO FORMULÁRIO
-    if (interaction.isModalSubmit() && interaction.customId === 'form_set_zerofoco') {
+    if (interaction.isModalSubmit() && interaction.customId === 'form_set_familia4m') {
       const nome = interaction.fields.getTextInputValue('nome');
       const id = interaction.fields.getTextInputValue('id');
       const numero = interaction.fields.getTextInputValue('numero');
       const recrutador = interaction.fields.getTextInputValue('recrutador');
 
       const embed = new EmbedBuilder()
-        .setTitle('📥 Nova Solicitação de Set')
+        .setTitle('📥 Nova Solicitação | Família 4M')
         .addFields(
           { name: '👤 Nome', value: nome, inline: true },
           { name: '🆔 ID', value: id, inline: true },
@@ -139,7 +140,7 @@ client.on('interactionCreate', async (interaction) => {
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`aceitar_set|${interaction.user.id}`)
+          .setCustomId(`aceitar_set_familia4m|${interaction.user.id}`)
           .setLabel('✅ Aceitar')
           .setStyle(ButtonStyle.Success)
       );
@@ -148,13 +149,13 @@ client.on('interactionCreate', async (interaction) => {
       if (canal) await canal.send({ embeds: [embed], components: [row] });
 
       return interaction.reply({
-        content: '✅ Solicitação enviada!',
+        content: '✅ Solicitação enviada com sucesso!',
         ephemeral: true
       });
     }
 
     // ✅ ACEITAR SET
-    if (interaction.isButton() && interaction.customId.startsWith('aceitar_set|')) {
+    if (interaction.isButton() && interaction.customId.startsWith('aceitar_set_familia4m|')) {
       const userId = interaction.customId.split('|')[1];
       const member = await interaction.guild.members.fetch(userId);
 
@@ -171,16 +172,16 @@ client.on('interactionCreate', async (interaction) => {
         components: [
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
+              .setCustomId('aprovado_familia4m')
               .setLabel('✔️ Aprovado')
               .setStyle(ButtonStyle.Secondary)
               .setDisabled(true)
-              .setCustomId('aprovado')
           )
         ]
       });
 
-      return interaction.followUp({
-        content: `✅ <@${userId}> recebeu o cargo com sucesso!`,
+      await interaction.followUp({
+        content: `✅ <@${userId}> foi aprovado e recebeu o cargo com sucesso!`,
         ephemeral: false
       });
     }
