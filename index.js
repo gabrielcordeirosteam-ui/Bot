@@ -103,7 +103,7 @@ function verificarResetSemanal() {
 setInterval(verificarResetSemanal, 60000);
 
 // =======================
-// PAINEL FIXO DO BANCO (TOP 10)
+// PAINEL FIXO DO BANCO
 // =======================
 function gerarEmbedTop10() {
   const banco = carregarBanco();
@@ -130,7 +130,7 @@ function gerarEmbedTop10() {
     .setTimestamp();
 }
 
-async function atualizarPainelBanco(guild) {
+async function criarOuAtualizarPainelBanco(guild) {
   const canal = guild.channels.cache.get(CANAL_BANCO_ID);
   if (!canal) return;
 
@@ -155,8 +155,6 @@ async function atualizarPainelBanco(guild) {
 // =======================
 client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
-  const guild = client.guilds.cache.first();
-  if (guild) atualizarPainelBanco(guild);
 });
 
 // =======================
@@ -169,7 +167,7 @@ client.on('messageCreate', async (message) => {
     PermissionsBitField.Flags.Administrator
   );
 
-  // PAINEL SET
+  // 👑 PAINEL SET
   if (isAdmin && message.content === '!painelset') {
     const embed = new EmbedBuilder()
       .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
@@ -186,7 +184,17 @@ client.on('messageCreate', async (message) => {
     message.channel.send({ embeds: [embed], components: [row] });
   }
 
-  // TOP 5 MANUAL
+  // 🏦 PAINEL BANCO (FIXO)
+  if (isAdmin && message.content === '!painelbanco') {
+    if (message.channel.id !== CANAL_BANCO_ID) {
+      return message.reply('❌ Use este comando apenas no canal do banco.');
+    }
+
+    await criarOuAtualizarPainelBanco(message.guild);
+    message.reply('✅ Painel do banco criado/atualizado com sucesso!');
+  }
+
+  // 🏆 TOP 5
   if (isAdmin && message.content === '!paineltopsets') {
     const banco = carregarBanco();
     const ranking = Object.entries(banco)
@@ -208,7 +216,7 @@ client.on('messageCreate', async (message) => {
     message.channel.send({ embeds: [embed] });
   }
 
-  // MEUS SETS
+  // 👤 MEUS SETS
   if (message.content === '!painelmeussets') {
     const banco = carregarBanco();
     const total = banco[message.author.id]?.sets || 0;
@@ -279,7 +287,7 @@ client.on('interactionCreate', async (interaction) => {
       banco[interaction.user.id].sets += 1;
       salvarBanco(banco);
 
-      await atualizarPainelBanco(interaction.guild);
+      await criarOuAtualizarPainelBanco(interaction.guild);
 
       interaction.editReply('✅ Set aprovado e contabilizado!');
     }
