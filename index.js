@@ -132,23 +132,26 @@ client.on('messageCreate', async (message) => {
   if (isAdmin && message.content === '!painelset') {
     const embed = new EmbedBuilder()
       .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
-      .setDescription('*Entre na FAMÍLIA 4M apenas clicando no botão abaixo!*')
-      .setDescription('**Instruções:**')
-      .setDescription('**1.** Clique em **Solicitar Set Família 4M**.')
-      .setDescription('**2.** Preencha seus dados do jogo.')
-      .setDescription('**3.** Aguarde a aprovação.')
-      .setDescription('*Desenvolvido por **Gabriel Cordeiro**.*')
+      .setDescription(
+        '**Entre na FAMÍLIA 4M apenas clicando no botão abaixo!**\n\n' +
+        '**Instruções:**\n' +
+        '**1.** Clique em **Solicitar Set Família 4M**.\n' +
+        '**2.** Preencha seus dados do jogo.\n' +
+        '**3.** Aguarde a aprovação.\n\n' +
+        '*Desenvolvido por **Gabriel Cordeiro***'
+      )
       .setColor('#2765e2');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('solicitar_set')
-        .setLabel('Solicitar Set')
+        .setLabel('Solicitar Set Família 4M')
         .setStyle(ButtonStyle.Secondary)
     );
 
     message.channel.send({ embeds: [embed], components: [row] });
   }
+
 
   // 🏦 PAINEL BANCO
   if (isAdmin && message.content === '!painelbanco') {
@@ -215,6 +218,11 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('nome')
             .setLabel('Nome')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
             .setCustomId('id')
             .setLabel('Id')
             .setStyle(TextInputStyle.Short)
