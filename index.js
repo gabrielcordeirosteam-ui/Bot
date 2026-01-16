@@ -28,9 +28,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  EmbedBuilder,
-  ChannelSelectMenuBuilder,
-  ChannelType
+  EmbedBuilder
 } = require('discord.js');
 
 const fs = require('fs');
@@ -60,6 +58,7 @@ const CARGO_ID = '1459377526475460719';
 // =======================
 const bancoPath = path.join(__dirname, 'banco_sets.json');
 const resetPath = path.join(__dirname, 'ultimo_reset.txt');
+const painelBancoPath = path.join(__dirname, 'painel_banco_msg.txt');
 
 function carregarBanco() {
   if (!fs.existsSync(bancoPath)) {
@@ -73,7 +72,7 @@ function salvarBanco(banco) {
 }
 
 // =======================
-// RESET SEMANAL
+// RESET SEMANAL (DOMINGO 00:00)
 // =======================
 function verificarResetSemanal() {
   const agora = new Date();
@@ -91,125 +90,135 @@ function verificarResetSemanal() {
   if (ultimoReset === hoje) return;
 
   const banco = carregarBanco();
-  for (const userId in banco) {
-    banco[userId].sets = 0;
+  for (const id in banco) {
+    banco[id].sets = 0;
   }
-  salvarBanco(banco);
 
+  salvarBanco(banco);
   fs.writeFileSync(resetPath, hoje);
+
   console.log('🔄 RESET SEMANAL DOS SETS EXECUTADO');
 }
 
-setInterval(verificarResetSemanal, 60000); // verifica a cada 1 minuto
+setInterval(verificarResetSemanal, 60000);
+
+// =======================
+// PAINEL FIXO DO BANCO (TOP 10)
+// =======================
+function gerarEmbedTop10() {
+  const banco = carregarBanco();
+
+  const ranking = Object.entries(banco)
+    .sort((a, b) => b[1].sets - a[1].sets)
+    .slice(0, 10);
+
+  let descricao = '';
+
+  if (!ranking.length) {
+    descricao = 'Nenhum set aprovado ainda.';
+  } else {
+    ranking.forEach(([id, dados], i) => {
+      descricao += `**${i + 1}º** <@${id}> — **${dados.sets}** sets\n`;
+    });
+  }
+
+  return new EmbedBuilder()
+    .setTitle('🏦 BANCO DE SETS — TOP 10')
+    .setDescription(descricao)
+    .setColor('#2ecc71')
+    .setFooter({ text: 'Atualiza automaticamente a cada set aprovado' })
+    .setTimestamp();
+}
+
+async function atualizarPainelBanco(guild) {
+  const canal = guild.channels.cache.get(CANAL_BANCO_ID);
+  if (!canal) return;
+
+  const embed = gerarEmbedTop10();
+
+  if (fs.existsSync(painelBancoPath)) {
+    const msgId = fs.readFileSync(painelBancoPath, 'utf8');
+    try {
+      const msg = await canal.messages.fetch(msgId);
+      return msg.edit({ embeds: [embed] });
+    } catch {
+      fs.unlinkSync(painelBancoPath);
+    }
+  }
+
+  const msg = await canal.send({ embeds: [embed] });
+  fs.writeFileSync(painelBancoPath, msg.id);
+}
 
 // =======================
 // READY
 // =======================
 client.once('ready', () => {
   console.log(`🤖 Bot online: ${client.user.tag}`);
+  const guild = client.guilds.cache.first();
+  if (guild) atualizarPainelBanco(guild);
 });
 
 // =======================
 // COMANDOS
 // =======================
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-  if (!message.guild) return;
+  if (message.author.bot || !message.guild) return;
 
-  // 🔒 ADMIN
-  const isAdmin =
-    message.member &&
-    message.member.permissions.has(PermissionsBitField.Flags.Administrator);
+  const isAdmin = message.member.permissions.has(
+    PermissionsBitField.Flags.Administrator
+  );
 
   // PAINEL SET
   if (isAdmin && message.content === '!painelset') {
     const embed = new EmbedBuilder()
       .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
-      .setDescription(
-        '*Clique no botão abaixo para solicitar o set*\n\n' +
-        '1️⃣ Preencha seus dados\n' +
-        '2️⃣ Aguarde aprovação'
-      )
+      .setDescription('Clique no botão para solicitar o set')
       .setColor('#2765e2');
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId('solicitar_set_familia4m')
-        .setLabel('Solicitar Set Família 4M')
+        .setCustomId('solicitar_set')
+        .setLabel('Solicitar Set')
         .setStyle(ButtonStyle.Secondary)
     );
 
-    await message.channel.send({ embeds: [embed], components: [row] });
+    message.channel.send({ embeds: [embed], components: [row] });
   }
 
-  // PAINEL BANCO
-  if (isAdmin && message.content === '!painelbanco') {
-    if (message.channel.id !== CANAL_BANCO_ID) return;
-
-    const embed = new EmbedBuilder()
-      .setTitle('🏦 BANCO DE SETS')
-      .setDescription(
-        '➕ Registrar pessoa no banco\n' +
-        '🔍 Consultar quantos sets aprovou'
-      )
-      .setColor('#2ecc71');
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('registrar_banco')
-        .setLabel('➕ Registrar Pessoa')
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId('consultar_banco')
-        .setLabel('🔍 Consultar Sets')
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await message.channel.send({ embeds: [embed], components: [row] });
-  }
-
-  // 🏆 TOP 5 SETS
+  // TOP 5 MANUAL
   if (isAdmin && message.content === '!paineltopsets') {
     const banco = carregarBanco();
     const ranking = Object.entries(banco)
       .sort((a, b) => b[1].sets - a[1].sets)
       .slice(0, 5);
 
-    if (!ranking.length) {
-      return message.reply('❌ Nenhum set registrado ainda.');
-    }
+    if (!ranking.length) return message.reply('❌ Nenhum set registrado.');
 
-    const medalhas = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
-    let descricao = '';
-
-    ranking.forEach(([id, dados], i) => {
-      descricao += `${medalhas[i]} <@${id}> — **${dados.sets}** sets\n`;
+    let desc = '';
+    ranking.forEach(([id, d], i) => {
+      desc += `**${i + 1}º** <@${id}> — **${d.sets}** sets\n`;
     });
 
     const embed = new EmbedBuilder()
-      .setTitle('🏆 TOP 5 — Sets Aprovados')
-      .setDescription(descricao)
+      .setTitle('🏆 TOP 5 SETS')
+      .setDescription(desc)
       .setColor('#f1c40f');
 
-    await message.channel.send({ embeds: [embed] });
+    message.channel.send({ embeds: [embed] });
   }
 
-  // 👤 MEUS SETS
+  // MEUS SETS
   if (message.content === '!painelmeussets') {
     const banco = carregarBanco();
-    const dados = banco[message.author.id];
-
-    const total = dados ? dados.sets : 0;
+    const total = banco[message.author.id]?.sets || 0;
 
     const embed = new EmbedBuilder()
       .setTitle('📊 Meus Sets')
-      .setDescription(
-        `👤 <@${message.author.id}>\n\n` +
-        `Você já aceitou **${total}** sets.`
-      )
+      .setDescription(`Você aprovou **${total}** sets.`)
       .setColor('#5865F2');
 
-    await message.reply({ embeds: [embed] });
+    message.reply({ embeds: [embed] });
   }
 });
 
@@ -218,32 +227,17 @@ client.on('messageCreate', async (message) => {
 // =======================
 client.on('interactionCreate', async (interaction) => {
   try {
-
-    // FORM SET
-    if (interaction.isButton() && interaction.customId === 'solicitar_set_familia4m') {
+    // FORM
+    if (interaction.isButton() && interaction.customId === 'solicitar_set') {
       const modal = new ModalBuilder()
         .setCustomId('form_set')
-        .setTitle('Formulário | Família 4M');
+        .setTitle('Solicitação de Set');
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId('nome')
             .setLabel('Nome')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('id')
-            .setLabel('ID')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-        ),
-        new ActionRowBuilder().addComponents(
-          new TextInputBuilder()
-            .setCustomId('recrutador')
-            .setLabel('Recrutador')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -256,10 +250,8 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isModalSubmit() && interaction.customId === 'form_set') {
       const embed = new EmbedBuilder()
         .setTitle('📥 Nova Solicitação')
-        .setColor('#5865F2')
-        .addFields(
-          { name: '👤 Discord', value: `<@${interaction.user.id}>` }
-        );
+        .setDescription(`<@${interaction.user.id}> solicitou set`)
+        .setColor('#5865F2');
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -269,9 +261,9 @@ client.on('interactionCreate', async (interaction) => {
       );
 
       const canal = interaction.guild.channels.cache.get(CANAL_RECRUTAMENTO_ID);
-      if (canal) await canal.send({ embeds: [embed], components: [row] });
+      if (canal) canal.send({ embeds: [embed], components: [row] });
 
-      return interaction.reply({ content: '✅ Solicitação enviada!', flags: 64 });
+      interaction.reply({ content: '✅ Solicitação enviada!', flags: 64 });
     }
 
     // ACEITAR SET
@@ -279,17 +271,18 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.deferReply({ flags: 64 });
 
       const userId = interaction.customId.split('|')[1];
-      const member = await interaction.guild.members.fetch(userId);
-      await member.roles.add(CARGO_ID);
+      const membro = await interaction.guild.members.fetch(userId);
+      await membro.roles.add(CARGO_ID);
 
       const banco = carregarBanco();
       if (!banco[interaction.user.id]) banco[interaction.user.id] = { sets: 0 };
       banco[interaction.user.id].sets += 1;
       salvarBanco(banco);
 
-      return interaction.editReply('✅ Set aprovado e contabilizado!');
-    }
+      await atualizarPainelBanco(interaction.guild);
 
+      interaction.editReply('✅ Set aprovado e contabilizado!');
+    }
   } catch (err) {
     console.error(err);
   }
