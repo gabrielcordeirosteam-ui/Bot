@@ -49,7 +49,6 @@ const client = new Client({
 const TOKEN = process.env.TOKEN;
 
 const CANAL_RECRUTAMENTO_ID = '1461214773667696875';
-const CANAL_LOGS_ID = '1461475178335830168';
 const CANAL_BANCO_ID = '1461525417218408705';
 const CARGO_ID = '1459377526475460719';
 
@@ -57,7 +56,6 @@ const CARGO_ID = '1459377526475460719';
 // BANCO DE SETS
 // =======================
 const bancoPath = path.join(__dirname, 'banco_sets.json');
-const resetPath = path.join(__dirname, 'ultimo_reset.txt');
 const painelBancoPath = path.join(__dirname, 'painel_banco_msg.txt');
 
 function carregarBanco() {
@@ -72,38 +70,7 @@ function salvarBanco(banco) {
 }
 
 // =======================
-// RESET SEMANAL (DOMINGO 00:00)
-// =======================
-function verificarResetSemanal() {
-  const agora = new Date();
-  const domingo = agora.getDay() === 0;
-  const meiaNoite = agora.getHours() === 0 && agora.getMinutes() === 0;
-
-  if (!domingo || !meiaNoite) return;
-
-  let ultimoReset = null;
-  if (fs.existsSync(resetPath)) {
-    ultimoReset = fs.readFileSync(resetPath, 'utf8');
-  }
-
-  const hoje = agora.toDateString();
-  if (ultimoReset === hoje) return;
-
-  const banco = carregarBanco();
-  for (const id in banco) {
-    banco[id].sets = 0;
-  }
-
-  salvarBanco(banco);
-  fs.writeFileSync(resetPath, hoje);
-
-  console.log('🔄 RESET SEMANAL DOS SETS EXECUTADO');
-}
-
-setInterval(verificarResetSemanal, 60000);
-
-// =======================
-// PAINEL FIXO DO BANCO
+// PAINEL FIXO DO BANCO (TOP 10)
 // =======================
 function gerarEmbedTop10() {
   const banco = carregarBanco();
@@ -112,20 +79,14 @@ function gerarEmbedTop10() {
     .sort((a, b) => b[1].sets - a[1].sets)
     .slice(0, 10);
 
-  let descricao = '';
-
-  if (!ranking.length) {
-    descricao = 'Nenhum set aprovado ainda.';
-  } else {
-    ranking.forEach(([id, dados], i) => {
-      descricao += `**${i + 1}º** <@${id}> — **${dados.sets}** sets\n`;
-    });
-  }
+  let descricao = ranking.length
+    ? ranking.map(([id, d], i) => `**${i + 1}º** <@${id}> — **${d.sets}** sets`).join('\n')
+    : 'Nenhum set aprovado ainda.';
 
   return new EmbedBuilder()
     .setTitle('🏦 BANCO DE SETS — TOP 10')
     .setDescription(descricao)
-    .setColor('#2ecc71')
+    .setColor('#2765e2')
     .setFooter({ text: 'Atualiza automaticamente a cada set aprovado' })
     .setTimestamp();
 }
@@ -171,7 +132,12 @@ client.on('messageCreate', async (message) => {
   if (isAdmin && message.content === '!painelset') {
     const embed = new EmbedBuilder()
       .setTitle('👑 RECRUTAMENTO FAMÍLIA 4M')
-      .setDescription('Clique no botão para solicitar o set')
+      .setDescription('*Entre na FAMÍLIA 4M apenas clicando no botão abaixo!*')
+      .setDescription('**Instruções:**')
+      .setDescription('**1.** Clique em **Solicitar Set Família 4M**.')
+      .setDescription('**2.** Preencha seus dados do jogo.')
+      .setDescription('**3.** Aguarde a aprovação.')
+      .setDescription('*Desenvolvido por **Gabriel Cordeiro**.*')
       .setColor('#2765e2');
 
     const row = new ActionRowBuilder().addComponents(
@@ -184,32 +150,38 @@ client.on('messageCreate', async (message) => {
     message.channel.send({ embeds: [embed], components: [row] });
   }
 
-  // 🏦 PAINEL BANCO (FIXO)
+  // 🏦 PAINEL BANCO
   if (isAdmin && message.content === '!painelbanco') {
-    if (message.channel.id !== CANAL_BANCO_ID) {
-      return message.reply('❌ Use este comando apenas no canal do banco.');
-    }
-
     await criarOuAtualizarPainelBanco(message.guild);
-    message.reply('✅ Painel do banco criado/atualizado com sucesso!');
+    message.reply('✅ Painel do banco criado/atualizado!');
   }
 
-  // 🏆 TOP 5
+  // 🔄 RESET MANUAL DO BANCO
+  if (isAdmin && message.content === '!painelresetbanco') {
+    const banco = carregarBanco();
+    for (const id in banco) banco[id].sets = 0;
+    salvarBanco(banco);
+
+    await criarOuAtualizarPainelBanco(message.guild);
+
+    message.reply('🔄 Banco de sets resetado com sucesso!');
+  }
+
+  // 🏆 TOP 3
   if (isAdmin && message.content === '!paineltopsets') {
     const banco = carregarBanco();
     const ranking = Object.entries(banco)
       .sort((a, b) => b[1].sets - a[1].sets)
-      .slice(0, 5);
+      .slice(0, 3);
 
     if (!ranking.length) return message.reply('❌ Nenhum set registrado.');
 
-    let desc = '';
-    ranking.forEach(([id, d], i) => {
-      desc += `**${i + 1}º** <@${id}> — **${d.sets}** sets\n`;
-    });
+    let desc = ranking
+      .map(([id, d], i) => `**${i + 1}º** <@${id}> — **${d.sets}** sets`)
+      .join('\n');
 
     const embed = new EmbedBuilder()
-      .setTitle('🏆 TOP 5 SETS')
+      .setTitle('🏆 TOP 3 SETS')
       .setDescription(desc)
       .setColor('#f1c40f');
 
@@ -230,12 +202,9 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// =======================
-// INTERAÇÕES
-// =======================
+
 client.on('interactionCreate', async (interaction) => {
   try {
-    // FORM
     if (interaction.isButton() && interaction.customId === 'solicitar_set') {
       const modal = new ModalBuilder()
         .setCustomId('form_set')
@@ -246,6 +215,8 @@ client.on('interactionCreate', async (interaction) => {
           new TextInputBuilder()
             .setCustomId('nome')
             .setLabel('Nome')
+            .setCustomId('id')
+            .setLabel('Id')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -254,17 +225,16 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.showModal(modal);
     }
 
-    // ENVIAR FORM
     if (interaction.isModalSubmit() && interaction.customId === 'form_set') {
       const embed = new EmbedBuilder()
         .setTitle('📥 Nova Solicitação')
-        .setDescription(`<@${interaction.user.id}> solicitou set`)
+        .setDescription(`<@${interaction.user.id}> Solicitou set!`)
         .setColor('#5865F2');
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`aceitar_set|${interaction.user.id}`)
-          .setLabel('✅ Aceitar')
+          .setLabel('✅ Aceitar Set')
           .setStyle(ButtonStyle.Success)
       );
 
@@ -274,7 +244,6 @@ client.on('interactionCreate', async (interaction) => {
       interaction.reply({ content: '✅ Solicitação enviada!', flags: 64 });
     }
 
-    // ACEITAR SET
     if (interaction.isButton() && interaction.customId.startsWith('aceitar_set|')) {
       await interaction.deferReply({ flags: 64 });
 
