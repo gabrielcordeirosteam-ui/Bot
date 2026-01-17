@@ -42,7 +42,7 @@ const client = new Client({
 client.login(process.env.TOKEN);
 
 /* =======================
-   ARQUIVOS
+   UTIL
 ======================= */
 const basePath = __dirname;
 
@@ -52,6 +52,9 @@ const painelBancoPath = (g) => path.join(basePath, `painel_banco_${g}.txt`);
 
 const load = (p, d) => fs.existsSync(p) ? JSON.parse(fs.readFileSync(p)) : d;
 const save = (p, d) => fs.writeFileSync(p, JSON.stringify(d, null, 2));
+
+const footer = (embed) =>
+  embed.setFooter({ text: 'Desenvolvido por CrD' });
 
 /* =======================
    READY
@@ -70,16 +73,20 @@ client.on('messageCreate', async (msg) => {
     msg.content === '!painelenviarset' &&
     msg.member.permissions.has(PermissionsBitField.Flags.Administrator)
   ) {
-    const embed = new EmbedBuilder()
-      .setTitle('👑 RECRUTAMENTO (FAC/ORG)')
-      .setDescription(
-        '*Entre apenas clicando no botão abaixo!*\n\n' +
-        '**Instruções:**\n' +
-        '1. Clique em **Solicitar Set**\n' +
-        '2. Preencha seus dados\n' +
-        '3. Aguarde aprovação'
-      )
-      .setColor('#5865F2');
+    const embed = footer(
+      new EmbedBuilder()
+        .setTitle('👑 RECRUTAMENTO (FAC/ORG)')
+        .setDescription(
+          '*Entre apenas clicando no botão abaixo!*\n\n' +
+          '**Instruções:**\n' +
+          '1. Clique em **Solicitar Set**\n' +
+          '2. Preencha seus dados\n' +
+          '3. Aguarde aprovação\n\n' +
+          '**MODELO DE SET A SEGUIR (OPCIONAL):**\n' +
+          'Nome:\nID:\nRecrutador:'
+        )
+        .setColor('#5865F2')
+    );
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -101,7 +108,7 @@ client.on('interactionCreate', async (i) => {
     if (i.isButton() && i.customId === 'config_set') {
       const modal = new ModalBuilder()
         .setCustomId('modal_config')
-        .setTitle('Configurar Painel');
+        .setTitle('Configurar Painel de Set');
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(
@@ -115,31 +122,35 @@ client.on('interactionCreate', async (i) => {
       return i.showModal(modal);
     }
 
-    /* SELEÇÕES */
+    /* SELEÇÃO DE CANAIS E CARGO */
     if (i.isModalSubmit() && i.customId === 'modal_config') {
       save(cfgPath(i.guild.id), { msg: i.fields.getTextInputValue('msg') });
 
       return i.reply({
-        content: '📌 Selecione os canais e cargo:',
+        content: '📌 Selecione os canais e o cargo:',
         components: [
           new ActionRowBuilder().addComponents(
             new ChannelSelectMenuBuilder()
               .setCustomId('canal_set')
+              .setPlaceholder('Selecione o canal de ENVIO do SET')
               .setChannelTypes(ChannelType.GuildText)
           ),
           new ActionRowBuilder().addComponents(
             new ChannelSelectMenuBuilder()
               .setCustomId('canal_aceitar')
+              .setPlaceholder('Selecione o canal que irá ACEITAR os SETS')
               .setChannelTypes(ChannelType.GuildText)
           ),
           new ActionRowBuilder().addComponents(
             new ChannelSelectMenuBuilder()
               .setCustomId('canal_banco')
+              .setPlaceholder('Selecione o canal que irá ser o BANCO de SETS')
               .setChannelTypes(ChannelType.GuildText)
           ),
           new ActionRowBuilder().addComponents(
             new RoleSelectMenuBuilder()
               .setCustomId('cargo_set')
+              .setPlaceholder('Selecione o cargo que o USUÁRIO irá RECEBER')
           )
         ],
         ephemeral: true
@@ -152,25 +163,34 @@ client.on('interactionCreate', async (i) => {
       cfg[i.customId] = i.values[0];
       save(cfgPath(i.guild.id), cfg);
 
-      if (Object.keys(cfg).length >= 5) {
-        const embed = new EmbedBuilder()
-          .setDescription(cfg.msg)
-          .setColor('#2f3136');
+      if (
+        cfg.msg &&
+        cfg.canal_set &&
+        cfg.canal_aceitar &&
+        cfg.canal_banco &&
+        cfg.cargo_set
+      ) {
+        const embed = footer(
+          new EmbedBuilder()
+            .setDescription(cfg.msg)
+            .setColor('#5865F2')
+        );
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId('pedir_set')
-            .setLabel('Pedir Set')
+            .setLabel('Solicitar Set')
             .setStyle(ButtonStyle.Success)
         );
 
-        i.guild.channels.cache.get(cfg.canal_set)
+        i.guild.channels.cache
+          .get(cfg.canal_set)
           .send({ embeds: [embed], components: [row] });
 
         await atualizarBanco(i.guild, cfg.canal_banco);
       }
 
-      i.reply({ content: '✅ Configurado', ephemeral: true });
+      i.reply({ content: '✅ Configuração salva!', ephemeral: true });
     }
 
     /* PEDIR SET */
@@ -180,11 +200,11 @@ client.on('interactionCreate', async (i) => {
         .setTitle('Pedido de Set');
 
       modal.addComponents(
-        ['Nome', 'ID', 'Recrutador'].map((l, x) =>
+        ['Nome', 'ID', 'Recrutador'].map((label, idx) =>
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
-              .setCustomId(`f${x}`)
-              .setLabel(l)
+              .setCustomId(`f${idx}`)
+              .setLabel(label)
               .setStyle(TextInputStyle.Short)
               .setRequired(true)
           )
@@ -197,14 +217,17 @@ client.on('interactionCreate', async (i) => {
     /* ENVIAR SET */
     if (i.isModalSubmit() && i.customId === 'modal_set') {
       const cfg = load(cfgPath(i.guild.id), {});
-      const embed = new EmbedBuilder()
-        .setTitle('📥 NOVO SET')
-        .addFields(
-          { name: 'Nome', value: i.fields.getTextInputValue('f0') },
-          { name: 'ID', value: i.fields.getTextInputValue('f1') },
-          { name: 'Recrutador', value: i.fields.getTextInputValue('f2') }
-        )
-        .setColor('#f1c40f');
+
+      const embed = footer(
+        new EmbedBuilder()
+          .setTitle('📥 NOVO PEDIDO DE SET')
+          .addFields(
+            { name: 'Nome', value: i.fields.getTextInputValue('f0') },
+            { name: 'ID', value: i.fields.getTextInputValue('f1') },
+            { name: 'Recrutador', value: i.fields.getTextInputValue('f2') }
+          )
+          .setColor('#5865F2')
+      );
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -213,13 +236,14 @@ client.on('interactionCreate', async (i) => {
           .setStyle(ButtonStyle.Primary)
       );
 
-      i.guild.channels.cache.get(cfg.canal_aceitar)
+      i.guild.channels.cache
+        .get(cfg.canal_aceitar)
         .send({ embeds: [embed], components: [row] });
 
-      i.reply({ content: '⏳ Set enviado, aguarde.', ephemeral: true });
+      i.reply({ content: '⏳ Set enviado. Aguarde aprovação.', ephemeral: true });
     }
 
-    /* ACEITAR */
+    /* ACEITAR SET */
     if (i.isButton() && i.customId.startsWith('aceitar_')) {
       const userId = i.customId.split('_')[1];
       const cfg = load(cfgPath(i.guild.id), {});
@@ -233,16 +257,16 @@ client.on('interactionCreate', async (i) => {
 
       await atualizarBanco(i.guild, cfg.canal_banco);
 
-      i.update({ content: '✅ Set aprovado', components: [] });
+      i.update({ content: '✅ Set aprovado com sucesso!', components: [] });
     }
 
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error(err);
   }
 });
 
 /* =======================
-   BANCO
+   BANCO DE SETS
 ======================= */
 async function atualizarBanco(guild, canalId) {
   const banco = load(bancoPath(guild.id), {});
@@ -250,14 +274,18 @@ async function atualizarBanco(guild, canalId) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3);
 
-  const embed = new EmbedBuilder()
-    .setTitle('🏦 BANCO DE SETS — TOP 3')
-    .setDescription(
-      top.length
-        ? top.map(([id, s], i) => `**${i + 1}º** <@${id}> — ${s}`).join('\n')
-        : 'Nenhum set aprovado'
-    )
-    .setColor('#2f3136');
+  const embed = footer(
+    new EmbedBuilder()
+      .setTitle('🏦 BANCO DE SETS — TOP 3')
+      .setDescription(
+        top.length
+          ? top.map(([id, s], i) =>
+              `**${i + 1}º** <@${id}> — **${s}** sets`
+            ).join('\n')
+          : 'Nenhum set aprovado ainda.'
+      )
+      .setColor('#5865F2')
+  );
 
   const canal = guild.channels.cache.get(canalId);
 
